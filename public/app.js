@@ -189,12 +189,50 @@ async function render() {
     else if ((m = path.match(/^\/cartao\/(\d+)$/))) await cardView(id, Number(m[1]), q);
     else if (path === '/lancamentos') { $('[data-tab=search]').classList.add('active'); await searchView(id); }
     else { $('[data-tab=home]').classList.add('active'); await homeView(id); }
+    if (!stale(id)) renderSidebar(path);
   } catch (e) {
     if (id === state.renderId) view.innerHTML = `<div class="empty">${esc(e.message)}<br><br><button class="btn small" onclick="location.reload()">Recarregar</button></div>`;
   }
 }
 
 const stale = (id) => id !== state.renderId;
+
+// ───────────── barra lateral ─────────────
+const sidebar = $('#sidebar');
+const scrim = $('#scrim');
+function toggleMenu(open) {
+  sidebar.classList.toggle('open', open);
+  scrim.classList.toggle('show', open);
+}
+async function renderSidebar(path = parseHash().path) {
+  let accounts;
+  try { accounts = await ensureAccounts(); } catch { return; }
+  const active = accounts.filter((a) => !a.archived);
+  const banks = active.filter((a) => a.kind === 'bank');
+  const cards = active.filter((a) => a.kind === 'card');
+  const link = (href, inner) => `<a class="sb-link${path === href.slice(1) ? ' active' : ''}" href="${href}">${inner}</a>`;
+  sidebar.innerHTML = `
+    <div class="sb-brand">Finanças</div>
+    ${link('#/', '<span class="sb-ic">⌂</span><span class="nm">Início</span>')}
+    ${link('#/lancamentos', '<span class="sb-ic">☰</span><span class="nm">Lançamentos</span>')}
+    <div class="sb-sec">Contas</div>
+    ${banks.map((a) => link(`#/conta/${a.id}`, `<span class="sb-dot" style="background:${esc(accColor(a))}"></span><span class="nm">${esc(a.name)}</span><span class="amt${a.balance < 0 ? ' out' : ''}">${money(a.balance)}</span>`)).join('')}
+    <a class="sb-link sb-add" href="javascript:void 0" data-sb-new="bank"><span class="sb-ic">+</span>Nova conta</a>
+    <div class="sb-sec">Cartões de crédito</div>
+    ${cards.map((a) => link(`#/cartao/${a.id}`, `<span class="sb-dot" style="background:${esc(accColor(a))}"></span><span class="nm">${esc(a.name)}</span><span class="amt${a.current_invoice_total > 0 ? ' out' : ''}">${money(a.current_invoice_total)}</span>`)).join('')}
+    <a class="sb-link sb-add" href="javascript:void 0" data-sb-new="card"><span class="sb-ic">+</span>Novo cartão</a>
+    <div class="sb-foot">
+      <a class="sb-link" href="#" data-sb-transfer><span class="sb-ic">⇄</span>Transferência</a>
+      <a class="sb-link" href="/api/export" download="financas-backup.json"><span class="sb-ic">⤓</span>Baixar backup</a>
+    </div>`;
+  sidebar.querySelectorAll('[data-sb-new]').forEach((b) => {
+    b.onclick = (e) => { e.preventDefault(); toggleMenu(false); accountForm(null, b.dataset.sbNew); };
+  });
+  sidebar.querySelector('[data-sb-transfer]').onclick = (e) => { e.preventDefault(); toggleMenu(false); transferForm(); };
+}
+$('#menu').onclick = () => toggleMenu(!sidebar.classList.contains('open'));
+scrim.onclick = () => toggleMenu(false);
+sidebar.addEventListener('click', (e) => { if (e.target.closest('a[href^="#/"]')) toggleMenu(false); });
 
 // ───────────── Início ─────────────
 async function homeView(id) {
@@ -718,7 +756,7 @@ view.addEventListener('click', (e) => {
 });
 $('#back').onclick = () => (history.length > 1 ? history.back() : go('#/'));
 $('#fab').onclick = () => txForm(null, { ...state.ctx });
-window.addEventListener('hashchange', () => { modal.open && modal.close(); render(); });
+window.addEventListener('hashchange', () => { modal.open && modal.close(); toggleMenu(false); render(); });
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js').catch(() => {});

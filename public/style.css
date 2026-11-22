@@ -64,7 +64,6 @@ main { max-width: 760px; margin: 0 auto; padding: 14px 14px 84px; }
   background: var(--brand); color: #fff; font-size: 30px; line-height: 1;
   box-shadow: 0 4px 14px rgba(15,157,88,.4);
 }
-@media (min-width: 900px) { .fab { right: calc(50% - 380px - 70px); } }
 
 /* cartões de conteúdo */
 .card { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px 16px; margin-bottom: 14px; }
@@ -170,3 +169,36 @@ dialog .actions .spacer { flex: 1; }
 .loading { text-align: center; color: var(--muted); padding: 40px; }
 footer.foot { text-align: center; font-size: 13px; color: var(--muted); margin-top: 6px; }
 footer.foot a { color: var(--brand); }
+
+/* barra lateral */
+#menu { font-size: 22px; }
+#sidebar {
+  position: fixed; top: 0; bottom: 0; left: 0; width: 270px; z-index: 30;
+  background: var(--surface); overflow-y: auto;
+  padding: calc(12px + var(--top)) 10px calc(16px + var(--bottom));
+  transform: translateX(-100%); transition: transform .22s ease;
+  box-shadow: 0 0 28px rgba(0,0,0,.25);
+}
+#sidebar.open { transform: none; }
+#scrim { position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 29; opacity: 0; pointer-events: none; transition: opacity .2s; }
+#scrim.show { opacity: 1; pointer-events: auto; }
+.sb-brand { font-weight: 700; font-size: 19px; padding: 8px 12px 14px; color: var(--brand); }
+.sb-link { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 10px; font-size: 15px; min-width: 0; }
+.sb-link:hover { background: var(--bg); }
+.sb-link.active { background: var(--soft); color: var(--brand); font-weight: 600; }
+.sb-link .nm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.sb-link .amt { margin-left: auto; font-size: 13px; color: var(--muted); white-space: nowrap; font-weight: 500; }
+.sb-link .amt.out { color: var(--out); }
+.sb-ic { width: 20px; text-align: center; flex: none; }
+.sb-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; margin: 0 5px; }
+.sb-sec { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); padding: 18px 12px 6px; font-weight: 600; }
+.sb-add { color: var(--brand); font-size: 14px; }
+.sb-foot { border-top: 1px solid var(--line); margin-top: 16px; padding-top: 10px; }
+
+@media (min-width: 900px) {
+  body { padding-left: 270px; padding-bottom: 0; }
+  #sidebar { transform: none; box-shadow: none; border-right: 1px solid var(--line); }
+  #menu, #scrim, .tabbar { display: none; }
+  .fab { right: 32px; bottom: 32px; }
+  main { padding-bottom: 100px; }
+}
