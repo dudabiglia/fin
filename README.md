@@ -54,17 +54,14 @@ O comando `npm run deploy` cria e atualiza as tabelas do banco (migrations) e pu
 
 O app fica disponível em `https://financas.SEU-SUBDOMINIO.workers.dev`.
 
-### 4. Proteger com login (importante!)
-Sem isso, qualquer pessoa com o link vê os seus dados.
+### 4. Criar a senha (faça logo após o primeiro deploy!)
+O app tem um login próprio, com uma senha única guardada no banco D1. No **primeiro acesso**, ele pede para você criar a senha. Enquanto a senha não for criada, qualquer pessoa que abrir o link poderia criá-la, então faça isso logo.
 
-1. No painel, abra o Worker `financas` → **Settings → Domains & Routes**. Na linha do `workers.dev`, ative o **Cloudflare Access**.
-   (Outro caminho: **Zero Trust → Access → Applications → Add an application → Self-hosted**, com o domínio do app.)
-2. Crie uma política **Allow** com **Emails = seu e-mail**. O login é feito por um código enviado ao seu e-mail.
-3. **Recomendado**, como segunda camada: a própria API também valida o token do Access. Abra a aplicação em Zero Trust → Access → Applications e copie:
-   - o **Application Audience (AUD) Tag**;
-   - o seu **team domain** (ex.: `meunome.cloudflareaccess.com`, em Zero Trust → Settings).
-
-   Preencha `ACCESS_AUD` e `ACCESS_TEAM_DOMAIN` em `vars` no `wrangler.jsonc` e faça push. Com essas variáveis preenchidas, a API recusa qualquer chamada que não tenha passado pelo login.
+- A senha é guardada como hash PBKDF2-SHA256 com salt, nunca em texto puro.
+- Depois do login, a sessão fica salva por 90 dias, num cookie HttpOnly, Secure e SameSite=Strict.
+- Depois de 5 tentativas erradas seguidas, o login fica bloqueado por 15 minutos.
+- No menu lateral, **Alterar senha** desconecta os outros aparelhos e **Sair** encerra a sessão.
+- **Esqueceu a senha?** Apague a senha pelo console do D1 no painel da Cloudflare (D1 → financas-db → Console) com `DELETE FROM auth; DELETE FROM sessions;` e crie uma nova no próximo acesso.
 
 ### 5. Instalar no iPhone e no PC
 - **iPhone**: abra o endereço no **Safari**, faça login, toque em **Compartilhar → Adicionar à Tela de Início**.
@@ -78,8 +75,6 @@ npm run db:migrate:local   # cria o banco local
 npm run dev                # http://localhost:8787
 npm test                   # testes da API (não precisa de npm install)
 ```
-
-Se você preencheu as variáveis do Access, crie um arquivo `.dev.vars` com `ACCESS_AUD=""` para desligar a validação no ambiente local.
 
 ## Mudanças no banco
 Crie um arquivo novo em `migrations/` (ex.: `0002_minha_mudanca.sql`). **Nunca altere migrations já aplicadas.** O próximo deploy aplica o arquivo novo.
@@ -98,5 +93,9 @@ Crie um arquivo novo em `migrations/` (ex.: `0002_minha_mudanca.sql`). **Nunca a
 | POST | `/api/transfers` | Transferência ou pagamento de fatura |
 | GET | `/api/categories` | Categorias já usadas |
 | GET | `/api/export` | Backup completo em JSON |
+| GET | `/api/auth/status` | Se a senha já existe e se a sessão é válida |
+| POST | `/api/auth/setup` · `/login` · `/logout` · `/password` | Criar senha, entrar, sair, trocar senha |
+
+Todas as rotas, exceto `/api/auth/*`, exigem login.
 
 Os valores são sempre **inteiros em centavos**.

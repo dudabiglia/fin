@@ -8,7 +8,8 @@ export default {
       return env.ASSETS ? env.ASSETS.fetch(request) : new Response('Not found', { status: 404 });
     }
     try {
-      await checkAccess(request, env);
+      if (url.pathname.startsWith('/api/auth/')) return await authRoute(request, env, url);
+      if (!(await currentSession(request, env))) throw new HttpError(401, 'Faça login para continuar');
       return await route(request, env, url);
     } catch (err) {
       if (err instanceof HttpError) return json({ error: err.message }, err.status);
@@ -27,10 +28,10 @@ class HttpError extends Error {
   }
 }
 
-function json(data, status = 200) {
+function json(data, status = 200, headers = {}) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' },
+    headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', ...headers },
   });
 }
 
@@ -496,57 +497,140 @@ async function exportAll(env) {
   return { exported_at: new Date().toISOString(), accounts: a.results, transactions: t.results };
 }
 
-// ───────────────────────── Cloudflare Access ─────────────────────────
-// Se ACCESS_TEAM_DOMAIN e ACCESS_AUD estiverem definidos, toda chamada à API exige um
-// token válido do Cloudflare Access (camada extra além da proteção na borda).
+// ───────────────────────── Login (senha única, guardada no D1) ─────────────────────────
 
-let jwksCache = { keys: new Map(), fetchedAt: 0 };
+const COOKIE = 'fin_session';
+const SESSION_DAYS = 90;
+const PBKDF2_ITERATIONS = 40000;   // limitado pelo tempo de CPU do plano gratuito
+const MAX_ATTEMPTS = 5;
+const LOCK_MINUTES = 15;
 
-function b64urlBytes(s) {
-  s = s.replace(/-/g, '+').replace(/_/g, '/');
-  while (s.length % 4) s += '=';
-  return Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+const enc = new TextEncoder();
+const toB64 = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf)));
+const fromB64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+
+async function hashPassword(password, salt, iterations) {
+  const key = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']);
+  return toB64(await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt, iterations }, key, 256));
+}
+const sha256 = async (s) => toB64(await crypto.subtle.digest('SHA-256', enc.encode(s)));
+
+function safeEqual(a, b) {
+  if (a.length !== b.length) return false;
+  let r = 0;
+  for (let i = 0; i < a.length; i++) r |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return r === 0;
 }
 
-async function accessKey(team, kid) {
-  if (!jwksCache.keys.has(kid) || Date.now() - jwksCache.fetchedAt > 3600_000) {
-    const res = await fetch(`https://${team}/cdn-cgi/access/certs`);
-    if (!res.ok) throw new HttpError(503, 'Não foi possível validar o login');
-    const { keys } = await res.json();
-    const map = new Map();
-    for (const jwk of keys) {
-      map.set(jwk.kid, await crypto.subtle.importKey(
-        'jwk', jwk, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['verify']
-      ));
+function getCookie(request, name) {
+  for (const part of (request.headers.get('cookie') || '').split(/;\s*/)) {
+    const i = part.indexOf('=');
+    if (i > 0 && part.slice(0, i) === name) return part.slice(i + 1);
+  }
+  return null;
+}
+
+const cookieHeader = (token, maxAge) =>
+  `${COOKIE}=${token}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${maxAge}`;
+
+async function currentSession(request, env) {
+  const token = getCookie(request, COOKIE);
+  if (!token || !/^[0-9a-f]{64}$/.test(token)) return null;
+  const h = await sha256(token);
+  const row = await env.DB.prepare(
+    "SELECT token_hash FROM sessions WHERE token_hash = ? AND expires_at > datetime('now')"
+  ).bind(h).first();
+  return row ? h : null;
+}
+
+async function startSession(env, body = { ok: true }) {
+  const token = [...crypto.getRandomValues(new Uint8Array(32))].map((b) => b.toString(16).padStart(2, '0')).join('');
+  await env.DB.batch([
+    env.DB.prepare("DELETE FROM sessions WHERE expires_at <= datetime('now')"),
+    env.DB.prepare(`INSERT INTO sessions (token_hash, expires_at) VALUES (?, datetime('now', '+${SESSION_DAYS} days'))`)
+      .bind(await sha256(token)),
+  ]);
+  return json(body, 200, { 'set-cookie': cookieHeader(token, SESSION_DAYS * 86400) });
+}
+
+function checkNewPassword(p) {
+  req(typeof p === 'string' && p.length >= 8, 'A senha precisa ter pelo menos 8 caracteres');
+  req(p.length <= 200, 'Senha muito longa');
+}
+
+async function verifyPassword(env, row, password) {
+  if (row.locked_until && row.locked_until > new Date().toISOString()) {
+    const min = Math.ceil((Date.parse(row.locked_until) - Date.now()) / 60000);
+    throw new HttpError(429, `Muitas tentativas. Tente de novo em ${min} min.`);
+  }
+  const ok = typeof password === 'string'
+    && safeEqual(await hashPassword(password, fromB64(row.salt), row.iterations), row.password_hash);
+  if (ok) {
+    if (row.failed_attempts) await env.DB.prepare('UPDATE auth SET failed_attempts = 0, locked_until = NULL WHERE id = 1').run();
+    return;
+  }
+  const fails = row.failed_attempts + 1;
+  if (fails >= MAX_ATTEMPTS) {
+    const until = new Date(Date.now() + LOCK_MINUTES * 60000).toISOString();
+    await env.DB.prepare('UPDATE auth SET failed_attempts = 0, locked_until = ? WHERE id = 1').bind(until).run();
+    throw new HttpError(429, `Muitas tentativas. Login bloqueado por ${LOCK_MINUTES} min.`);
+  }
+  await env.DB.prepare('UPDATE auth SET failed_attempts = ? WHERE id = 1').bind(fails).run();
+  throw new HttpError(401, 'Senha incorreta');
+}
+
+async function authRoute(request, env, url) {
+  const p = url.pathname.replace(/\/+$/, '');
+  const m = request.method;
+  const row = await env.DB.prepare('SELECT * FROM auth WHERE id = 1').first();
+
+  if (p === '/api/auth/status' && m === 'GET') {
+    return json({ configured: !!row, authenticated: !!(await currentSession(request, env)) });
+  }
+
+  // Primeiro acesso: cria a senha (só funciona enquanto não existir nenhuma)
+  if (p === '/api/auth/setup' && m === 'POST') {
+    if (row) throw new HttpError(409, 'A senha já foi criada');
+    const { password } = await readBody(request);
+    checkNewPassword(password);
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    try {
+      await env.DB.prepare('INSERT INTO auth (id, password_hash, salt, iterations) VALUES (1, ?, ?, ?)')
+        .bind(await hashPassword(password, salt, PBKDF2_ITERATIONS), toB64(salt), PBKDF2_ITERATIONS).run();
+    } catch {
+      throw new HttpError(409, 'A senha já foi criada');
     }
-    jwksCache = { keys: map, fetchedAt: Date.now() };
+    return startSession(env);
   }
-  return jwksCache.keys.get(kid);
-}
 
-async function checkAccess(request, env) {
-  if (!env.ACCESS_TEAM_DOMAIN || !env.ACCESS_AUD) return;
-  const team = env.ACCESS_TEAM_DOMAIN.replace(/^https?:\/\//, '').replace(/\/+$/, '');
-  const token = request.headers.get('cf-access-jwt-assertion');
-  if (!token) throw new HttpError(401, 'Não autenticado');
-  const parts = token.split('.');
-  if (parts.length !== 3) throw new HttpError(401, 'Token inválido');
-  const dec = new TextDecoder();
-  let header, payload;
-  try {
-    header = JSON.parse(dec.decode(b64urlBytes(parts[0])));
-    payload = JSON.parse(dec.decode(b64urlBytes(parts[1])));
-  } catch {
-    throw new HttpError(401, 'Token inválido');
+  if (p === '/api/auth/login' && m === 'POST') {
+    if (!row) throw new HttpError(409, 'Crie uma senha primeiro');
+    const { password } = await readBody(request);
+    await verifyPassword(env, row, password);
+    return startSession(env);
   }
-  const key = await accessKey(team, header.kid);
-  if (!key || header.alg !== 'RS256') throw new HttpError(401, 'Token inválido');
-  const ok = await crypto.subtle.verify(
-    'RSASSA-PKCS1-v1_5', key, b64urlBytes(parts[2]), new TextEncoder().encode(`${parts[0]}.${parts[1]}`)
-  );
-  const aud = Array.isArray(payload.aud) ? payload.aud : [payload.aud];
-  const now = Math.floor(Date.now() / 1000);
-  if (!ok || !aud.includes(env.ACCESS_AUD) || payload.iss !== `https://${team}` || !(payload.exp > now)) {
-    throw new HttpError(401, 'Token inválido ou expirado');
+
+  if (p === '/api/auth/logout' && m === 'POST') {
+    const s = await currentSession(request, env);
+    if (s) await env.DB.prepare('DELETE FROM sessions WHERE token_hash = ?').bind(s).run();
+    return json({ ok: true }, 200, { 'set-cookie': cookieHeader('', 0) });
   }
+
+  // Trocar senha: encerra as outras sessões (outros aparelhos)
+  if (p === '/api/auth/password' && m === 'POST') {
+    const s = await currentSession(request, env);
+    if (!s) throw new HttpError(401, 'Faça login para continuar');
+    const { current, password } = await readBody(request);
+    await verifyPassword(env, row, current);
+    checkNewPassword(password);
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    await env.DB.batch([
+      env.DB.prepare('UPDATE auth SET password_hash = ?, salt = ?, iterations = ? WHERE id = 1')
+        .bind(await hashPassword(password, salt, PBKDF2_ITERATIONS), toB64(salt), PBKDF2_ITERATIONS),
+      env.DB.prepare('DELETE FROM sessions WHERE token_hash <> ?').bind(s),
+    ]);
+    return json({ ok: true });
+  }
+
+  throw new HttpError(404, 'Rota não encontrada');
 }

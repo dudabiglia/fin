@@ -9,15 +9,22 @@ const MIG = fileURLToPath(new URL('../migrations', import.meta.url));
 const TODAY = '2026-11-22';
 
 function client(env) {
-  return async (method, path, body) => {
+  let cookie = '';
+  const api = async (method, path, body) => {
     const sep = path.includes('?') ? '&' : '?';
     const res = await worker.fetch(new Request(`https://x.test${path}${sep}today=${TODAY}`, {
-      method, body: body ? JSON.stringify(body) : undefined, headers: { 'content-type': 'application/json' },
+      method, body: body ? JSON.stringify(body) : undefined,
+      headers: { 'content-type': 'application/json', ...(cookie ? { cookie } : {}) },
     }), env);
+    const set = res.headers.get('set-cookie');
+    if (set) cookie = set.split(';')[0].endsWith('=') ? '' : set.split(';')[0];
     const data = await res.json();
     if (res.status >= 400) { const e = new Error(data.error); e.status = res.status; throw e; }
     return data;
   };
+  api.cookie = () => cookie;
+  api.setCookie = (c) => { cookie = c; };
+  return api;
 }
 
 test('cálculo de fatura', () => {
@@ -37,6 +44,7 @@ test('cálculo de fatura', () => {
 test('fluxo completo', async () => {
   const env = { DB: createD1(MIG) };
   const api = client(env);
+  await api('POST', '/api/auth/setup', { password: 'minha-senha-123' });
 
   const nubank = await api('POST', '/api/accounts', { name: 'Nubank', kind: 'bank', initial_balance: 100000 });
   const itau = await api('POST', '/api/accounts', { name: 'Itaú', kind: 'bank' });
@@ -146,36 +154,54 @@ test('fluxo completo', async () => {
   assert.equal(exp.accounts.length, 2);
 });
 
-test('Cloudflare Access: valida JWT', async () => {
-  const { publicKey, privateKey } = await crypto.subtle.generateKey(
-    { name: 'RSASSA-PKCS1-v1_5', modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256' }, true, ['sign', 'verify']);
-  const jwk = { ...(await crypto.subtle.exportKey('jwk', publicKey)), kid: 'k1' };
-  const team = 'minha.cloudflareaccess.com';
-  const realFetch = globalThis.fetch;
-  globalThis.fetch = async (u) => {
-    assert.equal(String(u), `https://${team}/cdn-cgi/access/certs`);
-    return new Response(JSON.stringify({ keys: [jwk] }));
-  };
-  const b64u = (buf) => Buffer.from(buf).toString('base64url');
-  const sign = async (payload) => {
-    const h = b64u(JSON.stringify({ alg: 'RS256', kid: 'k1' }));
-    const p = b64u(JSON.stringify(payload));
-    const sig = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', privateKey, new TextEncoder().encode(`${h}.${p}`));
-    return `${h}.${p}.${b64u(sig)}`;
-  };
-  const env = { DB: createD1(MIG), ACCESS_TEAM_DOMAIN: team, ACCESS_AUD: 'aud123' };
-  const call = (token) => worker.fetch(new Request('https://x.test/api/accounts', {
-    headers: token ? { 'cf-access-jwt-assertion': token } : {} }), env);
-  try {
-    const exp = Math.floor(Date.now() / 1000) + 600;
-    assert.equal((await call()).status, 401);
-    assert.equal((await call(await sign({ aud: ['aud123'], iss: `https://${team}`, exp }))).status, 200);
-    assert.equal((await call(await sign({ aud: ['outra'], iss: `https://${team}`, exp }))).status, 401);
-    assert.equal((await call(await sign({ aud: ['aud123'], iss: `https://${team}`, exp: 1 }))).status, 401);
-    const good = await sign({ aud: ['aud123'], iss: `https://${team}`, exp });
-    const tampered = good.slice(0, -4) + (good.endsWith('AAAA') ? 'BBBB' : 'AAAA');
-    assert.equal((await call(tampered)).status, 401);
-  } finally {
-    globalThis.fetch = realFetch;
-  }
+test('login com senha', async () => {
+  const env = { DB: createD1(MIG) };
+  const api = client(env);
+
+  // sem senha criada: nada da API funciona
+  assert.deepEqual(await api('GET', '/api/auth/status'), { configured: false, authenticated: false });
+  await assert.rejects(api('GET', '/api/accounts'), (e) => e.status === 401);
+  await assert.rejects(api('POST', '/api/auth/login', { password: 'x' }), (e) => e.status === 409);
+  await assert.rejects(api('POST', '/api/auth/setup', { password: 'curta' }), /8 caracteres/);
+
+  // primeiro acesso cria a senha e já entra
+  await api('POST', '/api/auth/setup', { password: 'senha-forte-1' });
+  assert.match(api.cookie(), /^fin_session=[0-9a-f]{64}$/);
+  assert.deepEqual(await api('GET', '/api/auth/status'), { configured: true, authenticated: true });
+  assert.deepEqual(await api('GET', '/api/accounts'), []);
+
+  // ninguém mais consegue "criar" a senha
+  const stranger = client(env);
+  await assert.rejects(stranger('POST', '/api/auth/setup', { password: 'outra-senha-1' }), (e) => e.status === 409);
+  await assert.rejects(stranger('GET', '/api/accounts'), (e) => e.status === 401);
+  stranger.setCookie('fin_session=' + 'a'.repeat(64));
+  await assert.rejects(stranger('GET', '/api/accounts'), (e) => e.status === 401);
+
+  // sair invalida a sessão
+  const old = api.cookie();
+  await api('POST', '/api/auth/logout');
+  assert.equal(api.cookie(), '');
+  api.setCookie(old);
+  await assert.rejects(api('GET', '/api/accounts'), (e) => e.status === 401);
+
+  // login errado / certo
+  const c = client(env);
+  await assert.rejects(c('POST', '/api/auth/login', { password: 'errada' }), /incorreta/);
+  await c('POST', '/api/auth/login', { password: 'senha-forte-1' });
+  assert.deepEqual(await c('GET', '/api/accounts'), []);
+
+  // troca de senha derruba as outras sessões
+  const other = client(env);
+  await other('POST', '/api/auth/login', { password: 'senha-forte-1' });
+  await assert.rejects(c('POST', '/api/auth/password', { current: 'errada', password: 'nova-senha-1' }), /incorreta/);
+  await c('POST', '/api/auth/password', { current: 'senha-forte-1', password: 'nova-senha-1' });
+  await assert.rejects(other('GET', '/api/accounts'), (e) => e.status === 401);
+  assert.deepEqual(await c('GET', '/api/accounts'), []);
+  await assert.rejects(client(env)('POST', '/api/auth/login', { password: 'senha-forte-1' }), /incorreta/);
+
+  // bloqueio após 5 tentativas erradas seguidas (a tentativa logo acima já foi a 1ª)
+  const bad = client(env);
+  for (let i = 0; i < 3; i++) await assert.rejects(bad('POST', '/api/auth/login', { password: 'x' }), (e) => e.status === 401);
+  await assert.rejects(bad('POST', '/api/auth/login', { password: 'x' }), (e) => e.status === 429);
+  await assert.rejects(bad('POST', '/api/auth/login', { password: 'nova-senha-1' }), (e) => e.status === 429);
 });

@@ -202,3 +202,13 @@ footer.foot a { color: var(--brand); }
   .fab { right: 32px; bottom: 32px; }
   main { padding-bottom: 100px; }
 }
+
+/* tela de login */
+body.locked .topbar, body.locked .tabbar, body.locked .fab, body.locked #sidebar, body.locked #scrim { display: none !important; }
+body.locked { padding-left: 0 !important; padding-bottom: 0; }
+body.locked main { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding-top: calc(14px + var(--top)); }
+.auth { width: 100%; max-width: 360px; padding: 28px 24px; text-align: left; }
+.auth-logo { width: 64px; height: 64px; border-radius: 16px; background: var(--brand); color: #fff; font-weight: 700; font-size: 24px; display: grid; place-items: center; margin: 0 auto 10px; }
+.card.auth .auth-title { display: block; text-align: center; margin: 0; font-size: 22px; color: var(--text); }
+.auth-sub { text-align: center; margin: 6px 0 8px; font-size: 14px; }
+.auth-err { font-size: 14px; min-height: 1.2em; margin-top: 8px; }

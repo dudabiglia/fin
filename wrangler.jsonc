@@ -19,12 +19,5 @@
 
   // Sem URLs de preview públicas (o app tem dados pessoais)
   "preview_urls": false,
-  "observability": { "enabled": true },
-
-  // Opcional (recomendado): validação do login do Cloudflare Access dentro da API.
-  // Preencha depois de configurar o Access (veja o README).
-  "vars": {
-    "ACCESS_TEAM_DOMAIN": "",
-    "ACCESS_AUD": ""
-  }
+  "observability": { "enabled": true }
 }

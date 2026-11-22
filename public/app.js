@@ -67,8 +67,12 @@ async function api(path, { method = 'GET', body } = {}) {
     throw new Error('Sem conexão ou sessão expirada. Recarregue a página.');
   }
   const type = res.headers.get('content-type') || '';
-  if (!type.includes('application/json')) throw new Error('Sessão expirada. Recarregue a página para entrar de novo.');
+  if (!type.includes('application/json')) throw new Error('Resposta inesperada do servidor. Recarregue a página.');
   const data = await res.json();
+  if (res.status === 401 && !path.startsWith('/api/auth/')) {
+    showAuth(true);
+    throw new Error('Sessão expirada. Entre de novo.');
+  }
   if (!res.ok) throw new Error(data.error || `Erro ${res.status}`);
   return data;
 }
@@ -224,7 +228,16 @@ async function renderSidebar(path = parseHash().path) {
     <div class="sb-foot">
       <a class="sb-link" href="#" data-sb-transfer><span class="sb-ic">⇄</span>Transferência</a>
       <a class="sb-link" href="/api/export" download="financas-backup.json"><span class="sb-ic">⤓</span>Baixar backup</a>
+      <a class="sb-link" href="#" data-sb-pass><span class="sb-ic">🔑</span>Alterar senha</a>
+      <a class="sb-link" href="#" data-sb-logout><span class="sb-ic">⏻</span>Sair</a>
     </div>`;
+  sidebar.querySelector('[data-sb-pass]').onclick = (e) => { e.preventDefault(); toggleMenu(false); passwordForm(); };
+  sidebar.querySelector('[data-sb-logout]').onclick = async (e) => {
+    e.preventDefault();
+    toggleMenu(false);
+    try { await api('/api/auth/logout', { method: 'POST' }); } catch { /* sai mesmo assim */ }
+    showAuth(true);
+  };
   sidebar.querySelectorAll('[data-sb-new]').forEach((b) => {
     b.onclick = (e) => { e.preventDefault(); toggleMenu(false); accountForm(null, b.dataset.sbNew); };
   });
@@ -756,10 +769,96 @@ view.addEventListener('click', (e) => {
 });
 $('#back').onclick = () => (history.length > 1 ? history.back() : go('#/'));
 $('#fab').onclick = () => txForm(null, { ...state.ctx });
-window.addEventListener('hashchange', () => { modal.open && modal.close(); toggleMenu(false); render(); });
+window.addEventListener('hashchange', () => { if (document.body.classList.contains('locked')) return; modal.open && modal.close(); toggleMenu(false); render(); });
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js').catch(() => {});
 }
 
-render();
+// ───────────── login ─────────────
+function showAuth(configured) {
+  if (document.body.classList.contains('locked') && $('#authf')) return;
+  modal.open && modal.close();
+  toggleMenu(false);
+  state.accounts = null;
+  state.categories = null;
+  state.filters = null;
+  document.body.classList.add('locked');
+  document.title = 'Entrar · Finanças';
+  view.innerHTML = `
+    <form class="card auth" id="authf">
+      <div class="auth-logo">R$</div>
+      <h2 class="auth-title">Finanças</h2>
+      <p class="muted auth-sub">${configured ? 'Digite sua senha para entrar.' : 'Primeiro acesso: crie a senha que vai proteger o app.'}</p>
+      <input type="text" name="username" autocomplete="username" value="financas" hidden>
+      <label for="au-pass">${configured ? 'Senha' : 'Nova senha (mínimo 8 caracteres)'}</label>
+      <input type="password" id="au-pass" required minlength="${configured ? 1 : 8}" autocomplete="${configured ? 'current-password' : 'new-password'}" autofocus>
+      ${configured ? '' : `<label for="au-pass2">Repita a senha</label>
+      <input type="password" id="au-pass2" required minlength="8" autocomplete="new-password">`}
+      <div class="auth-err out" id="au-err" role="alert"></div>
+      <button class="btn" type="submit" style="width:100%;margin-top:14px">${configured ? 'Entrar' : 'Criar senha e entrar'}</button>
+    </form>`;
+  $('#au-pass').focus();
+  $('#authf').onsubmit = async (e) => {
+    e.preventDefault();
+    const pass = $('#au-pass').value;
+    const err = $('#au-err');
+    err.textContent = '';
+    if (!configured && pass !== $('#au-pass2').value) { err.textContent = 'As senhas não são iguais'; return; }
+    const btn = e.submitter || $('#authf button[type=submit]');
+    btn.disabled = true;
+    try {
+      await api(configured ? '/api/auth/login' : '/api/auth/setup', { method: 'POST', body: { password: pass } });
+      document.body.classList.remove('locked');
+      view.innerHTML = '';
+      render();
+    } catch (ex) {
+      err.textContent = ex.message;
+      $('#au-pass').select();
+    } finally {
+      btn.disabled = false;
+    }
+  };
+}
+
+function passwordForm() {
+  openModal(`
+    <form id="pwf">
+      <h3>Alterar senha</h3>
+      <input type="text" autocomplete="username" value="financas" hidden>
+      <label>Senha atual</label>
+      <input type="password" id="pw-cur" required autocomplete="current-password" autofocus>
+      <label>Nova senha (mínimo 8 caracteres)</label>
+      <input type="password" id="pw-new" required minlength="8" autocomplete="new-password">
+      <label>Repita a nova senha</label>
+      <input type="password" id="pw-new2" required minlength="8" autocomplete="new-password">
+      <p class="hint">Os outros aparelhos conectados vão precisar entrar de novo.</p>
+      <div class="actions">
+        <span class="spacer"></span>
+        <button type="button" class="btn ghost" id="pw-cancel">Cancelar</button>
+        <button class="btn" type="submit">Salvar</button>
+      </div>
+    </form>`, () => {
+    $('#pw-cancel').onclick = () => modal.close();
+    $('#pwf').onsubmit = async (e) => {
+      e.preventDefault();
+      if ($('#pw-new').value !== $('#pw-new2').value) return toast('As senhas novas não são iguais', true);
+      try {
+        await api('/api/auth/password', { method: 'POST', body: { current: $('#pw-cur').value, password: $('#pw-new').value } });
+        modal.close();
+        toast('Senha alterada');
+      } catch (err) { toast(err.message, true); }
+    };
+  });
+}
+
+(async () => {
+  try {
+    const st = await api('/api/auth/status');
+    if (!st.authenticated) return showAuth(st.configured);
+  } catch (e) {
+    view.innerHTML = `<div class="empty">${esc(e.message)}<br><br><button class="btn small" onclick="location.reload()">Recarregar</button></div>`;
+    return;
+  }
+  render();
+})();
