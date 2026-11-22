@@ -166,6 +166,29 @@ function openModal(html, onReady) {
 }
 modal.addEventListener('click', (e) => { if (e.target === modal) modal.close(); });
 
+// Confirmação dentro do app (o confirm() nativo é bloqueado em alguns navegadores/PWAs)
+const confirmDlg = document.createElement('dialog');
+confirmDlg.className = 'confirm';
+document.body.append(confirmDlg);
+function ask(message, okLabel = 'Excluir') {
+  return new Promise((resolve) => {
+    confirmDlg.innerHTML = `
+      <form method="dialog">
+        <p class="confirm-msg">${esc(message).replace(/\n/g, '<br>')}</p>
+        <div class="actions">
+          <span class="spacer"></span>
+          <button type="button" class="btn ghost" value="no">Cancelar</button>
+          <button type="button" class="btn btn-danger" value="yes">${esc(okLabel)}</button>
+        </div>
+      </form>`;
+    const done = (v) => { if (confirmDlg.open) confirmDlg.close(); resolve(v); };
+    confirmDlg.querySelectorAll('button').forEach((b) => { b.onclick = () => done(b.value === 'yes'); });
+    confirmDlg.oncancel = (e) => { e.preventDefault(); done(false); };
+    confirmDlg.onclick = (e) => { if (e.target === confirmDlg) done(false); };
+    confirmDlg.showModal();
+  });
+}
+
 async function afterChange(msg) {
   modal.close();
   toast(msg);
@@ -577,12 +600,12 @@ async function txForm(tx = null, preset = {}) {
     $('#t-cancel').onclick = () => modal.close();
     if (tx) {
       $('#t-del').onclick = async () => {
-        if (!confirm('Excluir este lançamento?')) return;
+        if (!await ask('Excluir este lançamento?')) return;
         try { await api(`/api/transactions/${tx.id}`, { method: 'DELETE' }); await afterChange('Lançamento excluído'); } catch (e) { toast(e.message, true); }
       };
       const delAll = $('#t-del-all');
       if (delAll) delAll.onclick = async () => {
-        if (!confirm(`Excluir todas as ${tx.installments} parcelas?`)) return;
+        if (!await ask(`Excluir todas as ${tx.installments} parcelas?`)) return;
         try { await api(`/api/transactions/${tx.id}?all=1`, { method: 'DELETE' }); await afterChange('Parcelas excluídas'); } catch (e) { toast(e.message, true); }
       };
     }
@@ -639,7 +662,7 @@ function transferInfo(tx) {
     </form>`, () => {
     $('#tr-close').onclick = () => modal.close();
     $('#tr-del').onclick = async () => {
-      if (!confirm('Excluir esta transferência (os dois lados)?')) return;
+      if (!await ask('Excluir esta transferência (os dois lados)?')) return;
       try { await api(`/api/transactions/${tx.id}`, { method: 'DELETE' }); await afterChange('Transferência excluída'); } catch (e) { toast(e.message, true); }
     };
   });
@@ -740,7 +763,7 @@ function accountForm(acc = null, kind = acc?.kind || 'bank') {
     $('#a-cancel').onclick = () => modal.close();
     if (acc) {
       $('#a-del').onclick = async () => {
-        if (!confirm(`Excluir "${acc.name}" e TODOS os seus lançamentos? Isso não pode ser desfeito.\n\nDica: se quiser só esconder, use "Arquivar".`)) return;
+        if (!await ask(`Excluir "${acc.name}" e TODOS os seus lançamentos? Isso não pode ser desfeito.\n\nDica: se quiser só esconder, use "Arquivar".`)) return;
         try {
           await api(`/api/accounts/${acc.id}`, { method: 'DELETE' });
           modal.close();
