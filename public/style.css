@@ -15,11 +15,18 @@
   --bottom: env(safe-area-inset-bottom, 0px);
   color-scheme: light dark;
 }
-@media (prefers-color-scheme: dark) {
-  :root {
+/* tema: segue o sistema, a não ser que o usuário escolha (data-theme no <html>) */
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] {
     --bg: #0f1115; --surface: #181b21; --text: #e8eaed; --muted: #9aa0a6;
     --line: #2a2e36; --in: #34c47c; --out: #f2766b; --soft: #16261d;
-    --shadow: none;
+    --shadow: none; color-scheme: dark; --bar: #0b6b3d;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1115; --surface: #181b21; --text: #e8eaed; --muted: #9aa0a6;
+    --line: #2a2e36; --in: #34c47c; --out: #f2766b; --soft: #16261d;
+    --shadow: none; color-scheme: dark; --bar: #0b6b3d;
   }
 }
 
@@ -39,7 +46,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
   position: sticky; top: 0; z-index: 10;
   display: flex; align-items: center; gap: 8px;
   padding: calc(10px + var(--top)) 16px 10px;
-  background: var(--brand); color: var(--brand-ink);
+  background: var(--bar, var(--brand)); color: var(--brand-ink);
 }
 .topbar h1 { font-size: 17px; font-weight: 500; margin: 0; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: .92; }
 .topbar h1:not(:empty)::before { content: '›'; margin: 0 8px 0 2px; opacity: .7; }
@@ -213,3 +220,8 @@ dialog.confirm form { padding: 18px; }
 .logo-btn { background: none; border: 0; padding: 0; line-height: 0; border-radius: 8px; flex: none; }
 .logo-btn img { border-radius: 8px; box-shadow: 0 0 0 1.5px rgba(255,255,255,.55); }
 .logo-btn:active { opacity: .7; }
+
+/* botão de tema */
+.theme-btn { background: none; border: 0; color: inherit; padding: 6px; margin-left: 2px; border-radius: 999px; line-height: 0; flex: none; }
+.theme-btn:hover { background: rgba(255,255,255,.15); }
+.theme-btn svg { width: 22px; height: 22px; }

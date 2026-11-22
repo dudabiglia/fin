@@ -9,6 +9,10 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="fin">
+  <script>
+    // aplica o tema salvo antes de desenhar a página (evita piscar)
+    try { const t = localStorage.getItem('fin-theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch {}
+  </script>
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/icons/favicon-32.png" type="image/png" sizes="32x32">
   <link rel="icon" href="/icons/icon-192.png" type="image/png" sizes="192x192">
@@ -28,6 +32,7 @@
     <a id="brand" href="#/" aria-label="Ir para o início">fin</a>
     <h1 id="title"></h1>
     <div id="top-actions"></div>
+    <button id="theme" class="theme-btn" aria-label="Alternar modo claro/escuro"></button>
   </header>
 
   <main id="view" aria-live="polite"></main>
