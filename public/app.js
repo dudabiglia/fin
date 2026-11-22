@@ -99,7 +99,7 @@ function toast(msg, err = false) {
 }
 
 function setHeader(title, { back = false, actions = [] } = {}) {
-  $('#title').textContent = title;
+  $('#title').textContent = title === 'Finanças' ? '' : title;
   document.title = title === 'Finanças' ? 'Finanças' : `${title} · Finanças`;
   $('#back').hidden = !back;
   const box = $('#top-actions');
@@ -209,12 +209,11 @@ async function render() {
   const { path, q } = parseHash();
   let m;
   state.ctx = {};
-  document.querySelectorAll('.tabbar a').forEach((a) => a.classList.remove('active'));
   try {
     if ((m = path.match(/^\/conta\/(\d+)$/))) await bankView(id, Number(m[1]), q);
     else if ((m = path.match(/^\/cartao\/(\d+)$/))) await cardView(id, Number(m[1]), q);
-    else if (path === '/lancamentos') { $('[data-tab=search]').classList.add('active'); await searchView(id); }
-    else { $('[data-tab=home]').classList.add('active'); await homeView(id); }
+    else if (path === '/lancamentos') await searchView(id);
+    else await homeView(id);
     if (!stale(id)) renderSidebar(path);
   } catch (e) {
     if (id === state.renderId) view.innerHTML = `<div class="empty">${esc(e.message)}<br><br><button class="btn small" onclick="location.reload()">Recarregar</button></div>`;
