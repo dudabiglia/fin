@@ -48,7 +48,7 @@ function parseMoney(s) {
   return Number.isFinite(n) ? Math.round(n * 100) : NaN;
 }
 const moneyInput = (c) => (c == null ? '' : (c / 100).toFixed(2).replace('.', ','));
-const initial = (name) => esc((name || '?').trim().charAt(0).toUpperCase());
+const initial = (name) => esc(((name || '').match(/\p{L}|\p{N}/u) || ['?'])[0].toUpperCase());
 const accColor = (a) => a?.color || (a?.kind === 'card' ? '#8430ce' : '#0f9d58');
 
 // ───────────── API ─────────────
@@ -272,7 +272,7 @@ async function homeView(id) {
       <div class="dot" style="background:${esc(accColor(a))}">${initial(a.name)}</div>
       <div class="main"><div class="t">${esc(a.name)}</div>
         <div class="s">Fatura ${shortMonth(a.current_invoice)} · vence ${shortDate(a.due_date)}${a.available_limit != null ? ` · disponível ${money(a.available_limit)}` : ''}</div></div>
-      <div class="v ${a.current_invoice_total > 0 ? 'out' : ''}">${money(a.current_invoice_total)}</div>
+      <div class="v ${a.current_invoice_total > 0 ? 'out' : ''}">${money(a.current_invoice_total)}${a.outstanding !== a.current_invoice_total && a.outstanding > 0 ? `<small>total em aberto ${money(a.outstanding)}</small>` : ''}</div>
     </a>`).join('');
 
   view.innerHTML = `
@@ -603,9 +603,19 @@ async function txForm(tx = null, preset = {}) {
       };
       if (!tx && inst) body.installments = Number(inst.value);
       try {
-        if (tx) await api(`/api/transactions/${tx.id}`, { method: 'PUT', body });
-        else await api('/api/transactions', { method: 'POST', body });
-        await afterChange(tx ? 'Lançamento atualizado' : 'Lançamento salvo');
+        const saved = tx
+          ? await api(`/api/transactions/${tx.id}`, { method: 'PUT', body })
+          : await api('/api/transactions', { method: 'POST', body });
+        let msg = tx ? 'Lançamento atualizado' : 'Lançamento salvo';
+        if (saved.invoice) {
+          msg += ` na fatura de ${monthLabel(saved.invoice)}`;
+          // se estiver na tela de um cartão, vai para a fatura onde o lançamento entrou
+          const { path, q } = parseHash();
+          if (path.startsWith('/cartao/') && (path !== `/cartao/${saved.account_id}` || q.get('f') !== saved.invoice)) {
+            history.replaceState(null, '', `#/cartao/${saved.account_id}?f=${saved.invoice}`);
+          }
+        }
+        await afterChange(msg);
       } catch (err) { toast(err.message, true); }
     };
   });
