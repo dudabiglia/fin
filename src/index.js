@@ -60,18 +60,17 @@ function dayIn(ym, day) {
   return `${ym}-${pad(Math.min(day, daysInMonth(ym)))}`;
 }
 
-// Fatura = mês de VENCIMENTO. Compras a partir do dia de fechamento vão para a fatura seguinte.
+// Fatura = mês em que ela FECHA. Compras a partir do dia de fechamento vão para a fatura do mês seguinte.
+// O vencimento cai no mesmo mês (se o dia de vencimento for depois do fechamento) ou no mês seguinte.
 export function invoiceFor(date, closingDay, dueDay) {
   const ym = date.slice(0, 7);
   const d = Number(date.slice(8, 10));
-  const closeOffset = d >= Math.min(closingDay, daysInMonth(ym)) ? 1 : 0;
-  const dueOffset = dueDay > closingDay ? 0 : 1;
-  return addMonths(ym, closeOffset + dueOffset);
+  return addMonths(ym, d >= Math.min(closingDay, daysInMonth(ym)) ? 1 : 0);
 }
 
 function invoiceDates(invoice, closingDay, dueDay) {
-  const closingMonth = dueDay > closingDay ? invoice : addMonths(invoice, -1);
-  return { closing_date: dayIn(closingMonth, closingDay), due_date: dayIn(invoice, dueDay) };
+  const dueMonth = dueDay > closingDay ? invoice : addMonths(invoice, 1);
+  return { closing_date: dayIn(invoice, closingDay), due_date: dayIn(dueMonth, dueDay) };
 }
 
 function todayParam(url) {
@@ -186,7 +185,7 @@ async function listAccounts(env, today) {
         projected_balance: a.initial_balance + a.sum_all,
       };
     }
-    const current = invoiceFor(today, a.closing_day, a.due_day);
+    const current = today.slice(0, 7); // resumos mostram sempre a fatura do mês atual
     const curTotal = inv.find((i) => i.account_id === a.id && i.invoice === current)?.total ?? 0;
     const outstanding = -a.sum_all;
     return {
@@ -271,7 +270,7 @@ async function statement(env, id, url) {
 async function invoice(env, id, url) {
   const acc = await getAccount(env, id);
   req(acc.kind === 'card', 'Esta conta não é um cartão');
-  const inv = url.searchParams.get('invoice') || invoiceFor(todayParam(url), acc.closing_day, acc.due_day);
+  const inv = url.searchParams.get('invoice') || todayParam(url).slice(0, 7);
   req(MONTH_RE.test(inv), 'Fatura inválida (YYYY-MM)');
   const { results } = await env.DB.prepare(
     `SELECT * FROM transactions WHERE account_id = ? AND invoice = ? ORDER BY date DESC, id DESC`

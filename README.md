@@ -11,7 +11,7 @@ App pessoal de controle financeiro: contas bancárias, cartões de crédito com 
 - **Transferências** entre contas. Elas não entram como receita nem como despesa.
 - **Backup**: exporta todos os dados em JSON (link no rodapé da tela inicial).
 
-Como as faturas funcionam: cada fatura leva o nome do **mês de vencimento**. Uma compra feita **a partir do dia de fechamento** entra na fatura seguinte. Ao lançar, dá para escolher outra fatura manualmente.
+Como as faturas funcionam: cada fatura leva o nome do **mês em que fecha**. Uma compra feita **a partir do dia de fechamento** entra na fatura do mês seguinte. Exemplo: num cartão que fecha no dia 30 e vence no dia 9, a fatura de novembro fecha em 30/11 e vence em 09/12. Os resumos mostram sempre a fatura do mês atual. Ao lançar, dá para escolher outra fatura manualmente.
 
 ## Estrutura
 

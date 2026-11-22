@@ -1,6 +1,6 @@
 // Service worker: permite instalar o app e abre a "casca" offline.
 // A API (/api) nunca é cacheada — os dados vêm sempre do servidor.
-const CACHE = 'financas-v5';
+const CACHE = 'financas-v6';
 const SHELL = ['/', '/index.html', '/style.css', '/app.js', '/manifest.webmanifest', '/icons/icon-192.png'];
 
 self.addEventListener('install', (e) => {

@@ -27,16 +27,16 @@ function client(env) {
   return api;
 }
 
-test('cálculo de fatura', () => {
-  // fecha dia 3, vence dia 10
+test('cálculo de fatura (nome = mês do fechamento)', () => {
+  // fecha dia 3: até dia 2 fica na fatura do mês; a partir do dia 3, na do mês seguinte
   assert.equal(invoiceFor('2026-11-02', 3, 10), '2026-11');
   assert.equal(invoiceFor('2026-11-03', 3, 10), '2026-12');
-  // fecha dia 25, vence dia 5 (mês seguinte)
-  assert.equal(invoiceFor('2026-11-20', 25, 5), '2026-12');
-  assert.equal(invoiceFor('2026-11-26', 25, 5), '2027-01');
-  assert.equal(invoiceFor('2026-12-28', 25, 5), '2027-02');
+  // fecha dia 30, vence dia 9 (do mês seguinte)
+  assert.equal(invoiceFor('2026-11-22', 30, 9), '2026-11');
+  assert.equal(invoiceFor('2026-11-30', 30, 9), '2026-12');
+  assert.equal(invoiceFor('2026-12-28', 25, 5), '2027-01');
   // fechamento 31 em mês de 30 dias
-  assert.equal(invoiceFor('2026-11-30', 31, 10), '2027-01');
+  assert.equal(invoiceFor('2026-11-30', 31, 10), '2026-12');
   assert.equal(addMonths('2026-12', 1), '2027-01');
   assert.equal(addMonths('2027-01', -1), '2026-12');
 });
@@ -61,7 +61,7 @@ test('fluxo completo', async () => {
   // compra parcelada no cartão: 3x de R$ 100,00 (R$ 300,01 → 100,03 + 100,00 + 100,00... confere resto)
   const p = await api('POST', '/api/transactions', { account_id: card.id, type: 'out', amount: 30001, description: 'Fone', category: 'Compras', date: '2026-11-20', installments: 3 });
   assert.equal(p.installment, 1);
-  assert.equal(p.invoice, '2026-12');
+  assert.equal(p.invoice, '2026-11');
   await api('POST', '/api/transactions', { account_id: card.id, type: 'out', amount: 4990, description: 'Netflix', category: 'Assinaturas', date: '2026-11-26' });
 
   const s = await api('GET', '/api/summary');
@@ -69,7 +69,7 @@ test('fluxo completo', async () => {
   assert.equal(nb.balance, 100000 + 500000 - 12345);           // até hoje
   assert.equal(nb.projected_balance, 100000 + 500000 - 12345 - 5000);
   const vc = s.accounts.find((a) => a.id === card.id);
-  assert.equal(vc.current_invoice, '2026-12');
+  assert.equal(vc.current_invoice, '2026-11');
   assert.equal(vc.current_invoice_total, 10001);
   assert.equal(vc.outstanding, 30001 + 4990);
   assert.equal(vc.available_limit, 500000 - 34991);
@@ -78,16 +78,17 @@ test('fluxo completo', async () => {
   assert.equal(s.expense, 12345 + 5000 + 30001 + 4990);
   assert.equal(s.income, 500000);
 
-  // faturas
-  let inv = await api('GET', `/api/accounts/${card.id}/invoice?invoice=2027-01`);
+  // faturas (sem parâmetro: fatura do mês atual)
+  assert.equal((await api('GET', `/api/accounts/${card.id}/invoice`)).invoice, '2026-11');
+  let inv = await api('GET', `/api/accounts/${card.id}/invoice?invoice=2026-12`);
   assert.equal(inv.total, 10000 + 4990);
   assert.deepEqual(inv.items.map((i) => i.installment).filter(Boolean), [2]);
-  inv = await api('GET', `/api/accounts/${card.id}/invoice?invoice=2027-02`);
+  inv = await api('GET', `/api/accounts/${card.id}/invoice?invoice=2027-01`);
   assert.equal(inv.total, 10000);
 
-  // pagar fatura de dezembro com a conta Nubank
-  await api('POST', '/api/transfers', { from_id: nubank.id, to_id: card.id, amount: 10001, date: '2026-12-05', invoice: '2026-12' });
-  inv = await api('GET', `/api/accounts/${card.id}/invoice?invoice=2026-12`);
+  // pagar a fatura de novembro (vence 05/12) com a conta Nubank
+  await api('POST', '/api/transfers', { from_id: nubank.id, to_id: card.id, amount: 10001, date: '2026-12-05', invoice: '2026-11' });
+  inv = await api('GET', `/api/accounts/${card.id}/invoice?invoice=2026-11`);
   assert.equal(inv.total, 0);
   assert.equal(inv.paid, true);
   assert.equal(inv.amount_due, 10001);
@@ -113,7 +114,7 @@ test('fluxo completo', async () => {
   assert.equal(r.items[0].account_name, 'Nubank');
   r = await api('GET', '/api/transactions?type=out&transfers=0&from=2026-11-01&to=2026-11-30');
   assert.equal(r.total_out, 12345 + 5000 + 30001 + 4990); // as 3 parcelas mantêm a data da compra
-  r = await api('GET', `/api/transactions?account_id=${card.id}&invoice=2027-01`);
+  r = await api('GET', `/api/transactions?account_id=${card.id}&invoice=2026-12`);
   assert.equal(r.count, 2);
   r = await api('GET', '/api/transactions?category=Compras');
   assert.equal(r.count, 3);
@@ -126,7 +127,7 @@ test('fluxo completo', async () => {
   // mover compra do cartão para outra data recalcula a fatura
   const net = (await api('GET', '/api/transactions?q=Netflix')).items[0];
   const moved = await api('PUT', `/api/transactions/${net.id}`, { date: '2026-11-10' });
-  assert.equal(moved.invoice, '2026-12');
+  assert.equal(moved.invoice, '2026-11');
   const forced = await api('PUT', `/api/transactions/${net.id}`, { invoice: '2027-03' });
   assert.equal(forced.invoice, '2027-03');
 

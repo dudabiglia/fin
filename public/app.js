@@ -25,11 +25,10 @@ function addMonths(ym, k) {
   const t = y * 12 + (m - 1) + k;
   return `${Math.floor(t / 12)}-${pad((t % 12) + 1)}`;
 }
-function invoiceFor(date, closingDay, dueDay) {
+function invoiceFor(date, closingDay) {
+  // fatura = mês em que fecha; a partir do dia de fechamento vai para a do mês seguinte
   const ym = date.slice(0, 7);
-  const d = Number(date.slice(8, 10));
-  const close = d >= Math.min(closingDay, daysInMonth(ym)) ? 1 : 0;
-  return addMonths(ym, close + (dueDay > closingDay ? 0 : 1));
+  return addMonths(ym, Number(date.slice(8, 10)) >= Math.min(closingDay, daysInMonth(ym)) ? 1 : 0);
 }
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 const MONTHS = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
@@ -705,7 +704,7 @@ async function transferForm(preset = {}) {
       const acc = byId(toSel.value);
       box.hidden = acc?.kind !== 'card';
       if (box.hidden) return;
-      const center = keep || invoiceFor(today(), acc.closing_day, acc.due_day);
+      const center = keep || thisMonth();
       invSel.innerHTML = invoiceOptions(center, center);
     };
     toSel.onchange = () => refresh();
@@ -744,7 +743,7 @@ function accountForm(acc = null, kind = acc?.kind || 'bank') {
           <div><label>Dia de fechamento</label><input id="a-close" type="number" min="1" max="31" required value="${acc?.closing_day ?? ''}"></div>
           <div><label>Dia de vencimento</label><input id="a-due" type="number" min="1" max="31" required value="${acc?.due_day ?? ''}"></div>
         </div>
-        <div class="hint">Compras feitas a partir do dia de fechamento entram na fatura seguinte. A fatura leva o nome do mês do vencimento.</div>
+        <div class="hint">A fatura leva o nome do mês em que fecha. Compras a partir do dia de fechamento entram na fatura do mês seguinte.</div>
       ` : `
         <label>Saldo inicial</label>
         <input id="a-init" inputmode="decimal" placeholder="0,00" value="${moneyInput(acc?.initial_balance ?? null)}">
