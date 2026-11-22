@@ -1,0 +1,30 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "financas",
+  "main": "src/index.js",
+  "compatibility_date": "2026-10-01",
+
+  // Frontend (PWA) servido como arquivos estáticos
+  "assets": { "directory": "./public", "binding": "ASSETS" },
+
+  // Banco de dados D1 — troque o database_id pelo ID do seu banco
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "financas-db",
+      "database_id": "COLE_AQUI_O_ID_DO_SEU_BANCO_D1",
+      "migrations_dir": "migrations"
+    }
+  ],
+
+  // Sem URLs de preview públicas (o app tem dados pessoais)
+  "preview_urls": false,
+  "observability": { "enabled": true },
+
+  // Opcional (recomendado): validação do login do Cloudflare Access dentro da API.
+  // Preencha depois de configurar o Access (veja o README).
+  "vars": {
+    "ACCESS_TEAM_DOMAIN": "",
+    "ACCESS_AUD": ""
+  }
+}
