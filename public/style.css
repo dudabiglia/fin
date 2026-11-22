@@ -44,7 +44,6 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .topbar h1 { font-size: 17px; font-weight: 500; margin: 0; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: .92; }
 .topbar h1:not(:empty)::before { content: '›'; margin: 0 8px 0 2px; opacity: .7; }
 #brand { display: flex; align-items: center; gap: 8px; font-size: 20px; font-weight: 800; letter-spacing: -.3px; white-space: nowrap; color: inherit; padding: 2px 0; }
-#brand img { border-radius: 7px; box-shadow: 0 0 0 1.5px rgba(255,255,255,.55); }
 #brand:active { opacity: .7; }
 .icon-btn { background: none; border: 0; color: inherit; font-size: 28px; line-height: 1; padding: 0 6px; }
 .top-link { background: rgba(255,255,255,.18); border: 0; border-radius: 999px; padding: 6px 12px; font-size: 14px; color: inherit; }
@@ -164,7 +163,6 @@ footer.foot { text-align: center; font-size: 13px; color: var(--muted); margin-t
 footer.foot a { color: var(--brand); }
 
 /* barra lateral */
-#menu { font-size: 22px; }
 #sidebar {
   position: fixed; top: 0; bottom: 0; left: 0; width: 270px; z-index: 30;
   background: var(--surface); overflow-y: auto;
@@ -212,4 +210,6 @@ dialog.confirm { width: min(380px, calc(100% - 32px)); margin: auto; border-radi
 dialog.confirm form { padding: 18px; }
 .confirm-msg { margin: 0; font-size: 16px; line-height: 1.45; }
 .btn-danger { background: var(--out); }
-@media (min-width: 900px) { #brand img { display: none; } }
+.logo-btn { background: none; border: 0; padding: 0; line-height: 0; border-radius: 8px; flex: none; }
+.logo-btn img { border-radius: 8px; box-shadow: 0 0 0 1.5px rgba(255,255,255,.55); }
+.logo-btn:active { opacity: .7; }
