@@ -43,7 +43,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 .topbar h1 { font-size: 17px; font-weight: 500; margin: 0; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: .92; }
 .topbar h1:not(:empty)::before { content: '›'; margin: 0 8px 0 2px; opacity: .7; }
-#brand { font-size: 18px; font-weight: 700; white-space: nowrap; color: inherit; padding: 4px 0; }
+#brand { display: flex; align-items: center; gap: 8px; font-size: 20px; font-weight: 800; letter-spacing: -.3px; white-space: nowrap; color: inherit; padding: 2px 0; }
+#brand img { border-radius: 7px; box-shadow: 0 0 0 1.5px rgba(255,255,255,.55); }
 #brand:active { opacity: .7; }
 .icon-btn { background: none; border: 0; color: inherit; font-size: 28px; line-height: 1; padding: 0 6px; }
 .top-link { background: rgba(255,255,255,.18); border: 0; border-radius: 999px; padding: 6px 12px; font-size: 14px; color: inherit; }
@@ -174,7 +175,8 @@ footer.foot a { color: var(--brand); }
 #sidebar.open { transform: none; visibility: visible; box-shadow: 0 0 28px rgba(0,0,0,.25); }
 #scrim { position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 29; opacity: 0; pointer-events: none; transition: opacity .2s; }
 #scrim.show { opacity: 1; pointer-events: auto; }
-.sb-brand { font-weight: 700; font-size: 19px; padding: 8px 12px 14px; color: var(--brand); }
+.sb-brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 22px; letter-spacing: -.3px; padding: 6px 12px 14px; color: var(--text); }
+.sb-brand img { border-radius: 8px; }
 .sb-link { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 10px; font-size: 15px; min-width: 0; }
 .sb-link:hover { background: var(--bg); }
 .sb-link.active { background: var(--soft); color: var(--brand); font-weight: 600; }
@@ -200,8 +202,8 @@ body.locked .topbar, body.locked .fab, body.locked #sidebar, body.locked #scrim 
 body.locked { padding-left: 0 !important; padding-bottom: 0; }
 body.locked main { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding-top: calc(14px + var(--top)); }
 .auth { width: 100%; max-width: 360px; padding: 28px 24px; text-align: left; }
-.auth-logo { width: 64px; height: 64px; border-radius: 16px; background: var(--brand); color: #fff; font-weight: 700; font-size: 24px; display: grid; place-items: center; margin: 0 auto 10px; }
-.card.auth .auth-title { display: block; text-align: center; margin: 0; font-size: 22px; color: var(--text); }
+.auth-logo { display: block; width: 72px; height: 72px; margin: 0 auto 10px; }
+.card.auth .auth-title { display: block; text-align: center; margin: 0; font-size: 26px; font-weight: 800; letter-spacing: -.5px; color: var(--text); }
 .auth-sub { text-align: center; margin: 6px 0 8px; font-size: 14px; }
 .auth-err { font-size: 14px; min-height: 1.2em; margin-top: 8px; }
 
@@ -210,3 +212,4 @@ dialog.confirm { width: min(380px, calc(100% - 32px)); margin: auto; border-radi
 dialog.confirm form { padding: 18px; }
 .confirm-msg { margin: 0; font-size: 16px; line-height: 1.45; }
 .btn-danger { background: var(--out); }
+@media (min-width: 900px) { #brand img { display: none; } }

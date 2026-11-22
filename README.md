@@ -1,6 +1,6 @@
-# Finanças
+# fin
 
-App pessoal de controle financeiro: contas bancárias, cartões de crédito com faturas mensais, lançamentos e busca. Roda na Cloudflare (Workers + banco D1) e funciona como aplicativo no iPhone e no PC (PWA).
+**fin** é um app pessoal de controle financeiro: contas bancárias, cartões de crédito com faturas mensais, lançamentos e busca. Roda na Cloudflare (Workers + banco D1) e funciona como aplicativo no iPhone e no PC (PWA).
 
 ## O que o app faz
 

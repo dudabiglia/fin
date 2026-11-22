@@ -1,4 +1,4 @@
-// Finanças — frontend (JavaScript puro, sem build)
+// fin — frontend (JavaScript puro, sem build)
 
 const $ = (s, el = document) => el.querySelector(s);
 const view = $('#view');
@@ -99,8 +99,8 @@ function toast(msg, err = false) {
 }
 
 function setHeader(title, { back = false, actions = [] } = {}) {
-  $('#title').textContent = title === 'Finanças' ? '' : title;
-  document.title = title === 'Finanças' ? 'Finanças' : `${title} · Finanças`;
+  $('#title').textContent = title === 'fin' ? '' : title;
+  document.title = title === 'fin' ? 'fin' : `${title} · fin`;
   $('#back').hidden = !back;
   const box = $('#top-actions');
   box.innerHTML = '';
@@ -237,7 +237,7 @@ async function renderSidebar(path = parseHash().path) {
   const cards = active.filter((a) => a.kind === 'card');
   const link = (href, inner) => `<a class="sb-link${path === href.slice(1) ? ' active' : ''}" href="${href}">${inner}</a>`;
   sidebar.innerHTML = `
-    <div class="sb-brand">Finanças</div>
+    <a class="sb-brand" href="#/"><img src="/icons/logo-64.png" alt="" width="30" height="30">fin</a>
     ${link('#/', '<span class="sb-ic">⌂</span><span class="nm">Início</span>')}
     ${link('#/lancamentos', '<span class="sb-ic">☰</span><span class="nm">Lançamentos</span>')}
     <div class="sb-sec">Contas</div>
@@ -270,7 +270,7 @@ sidebar.addEventListener('click', (e) => { if (e.target.closest('a[href^="#/"]')
 
 // ───────────── Início ─────────────
 async function homeView(id) {
-  setHeader('Finanças');
+  setHeader('fin');
   if (!view.innerHTML) view.innerHTML = '<div class="loading">Carregando…</div>';
   const s = await api('/api/summary');
   if (stale(id)) return;
@@ -815,11 +815,11 @@ function showAuth(configured) {
   state.categories = null;
   state.filters = null;
   document.body.classList.add('locked');
-  document.title = 'Entrar · Finanças';
+  document.title = 'Entrar · fin';
   view.innerHTML = `
     <form class="card auth" id="authf">
-      <div class="auth-logo">R$</div>
-      <h2 class="auth-title">Finanças</h2>
+      <img class="auth-logo" src="/icons/icon-192.png" alt="" width="72" height="72">
+      <h2 class="auth-title">fin</h2>
       <p class="muted auth-sub">${configured ? 'Digite sua senha para entrar.' : 'Primeiro acesso: crie a senha que vai proteger o app.'}</p>
       <input type="text" name="username" autocomplete="username" value="financas" hidden>
       <label for="au-pass">${configured ? 'Senha' : 'Nova senha (mínimo 8 caracteres)'}</label>
