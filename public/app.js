@@ -98,10 +98,11 @@ function toast(msg, err = false) {
   toastTimer = setTimeout(() => { el.className = ''; }, err ? 4000 : 2200);
 }
 
-function setHeader(title, { back = false, actions = [] } = {}) {
-  $('#title').textContent = title;
+const icon = (name, cls = '') => `<i class="ph-light ph-${name}${cls ? ` ${cls}` : ''}" aria-hidden="true"></i>`;
+
+function setHeader(title, { icon: ic = null, actions = [] } = {}) {
+  $('#title').innerHTML = `${ic ? icon(ic, 'title-ic') : ''}<span class="title-tx">${esc(title)}</span>`;
   document.title = title === 'Início' ? 'fin' : `${title} · fin`;
-  $('#back').hidden = !back;
   const box = $('#top-actions');
   box.innerHTML = '';
   for (const [label, fn] of actions) {
@@ -238,19 +239,19 @@ async function renderSidebar(path = parseHash().path) {
   const link = (href, inner) => `<a class="sb-link${path === href.slice(1) ? ' active' : ''}" href="${href}">${inner}</a>`;
   sidebar.innerHTML = `
     <a class="sb-brand" href="#/"><img src="/icons/logo-64.png" alt="" width="30" height="30">fin</a>
-    ${link('#/', '<span class="sb-ic">⌂</span><span class="nm">Início</span>')}
-    ${link('#/lancamentos', '<span class="sb-ic">☰</span><span class="nm">Lançamentos</span>')}
-    <div class="sb-sec">Contas</div>
+    ${link('#/', '<i class="ph-light ph-house sb-ic" aria-hidden="true"></i><span class="nm">Início</span>')}
+    ${link('#/lancamentos', '<i class="ph-light ph-list-bullets sb-ic" aria-hidden="true"></i><span class="nm">Lançamentos</span>')}
+    <div class="sb-sec"><i class="ph-light ph-bank" aria-hidden="true"></i>Contas</div>
     ${banks.map((a) => link(`#/conta/${a.id}`, `<span class="sb-dot" style="background:${esc(accColor(a))}"></span><span class="nm">${esc(a.name)}</span><span class="amt${a.balance < 0 ? ' out' : ''}">${money(a.balance)}</span>`)).join('')}
-    <a class="sb-link sb-add" href="javascript:void 0" data-sb-new="bank"><span class="sb-ic">+</span>Nova conta</a>
-    <div class="sb-sec">Cartões de crédito</div>
+    <a class="sb-link sb-add" href="javascript:void 0" data-sb-new="bank"><i class="ph-light ph-plus sb-ic" aria-hidden="true"></i>Nova conta</a>
+    <div class="sb-sec"><i class="ph-light ph-credit-card" aria-hidden="true"></i>Cartões de crédito</div>
     ${cards.map((a) => link(`#/cartao/${a.id}`, `<span class="sb-dot" style="background:${esc(accColor(a))}"></span><span class="nm">${esc(a.name)}</span><span class="amt${a.current_invoice_total > 0 ? ' out' : ''}">${money(a.current_invoice_total)}</span>`)).join('')}
-    <a class="sb-link sb-add" href="javascript:void 0" data-sb-new="card"><span class="sb-ic">+</span>Novo cartão</a>
+    <a class="sb-link sb-add" href="javascript:void 0" data-sb-new="card"><i class="ph-light ph-plus sb-ic" aria-hidden="true"></i>Novo cartão</a>
     <div class="sb-foot">
-      <a class="sb-link" href="#" data-sb-transfer><span class="sb-ic">⇄</span>Transferência</a>
-      <a class="sb-link" href="/api/export" download="financas-backup.json"><span class="sb-ic">⤓</span>Baixar backup</a>
-      <a class="sb-link" href="#" data-sb-pass><span class="sb-ic">🔑</span>Alterar senha</a>
-      <a class="sb-link" href="#" data-sb-logout><span class="sb-ic">⏻</span>Sair</a>
+      <a class="sb-link" href="#" data-sb-transfer><i class="ph-light ph-arrows-left-right sb-ic" aria-hidden="true"></i>Transferência</a>
+      <a class="sb-link" href="/api/export" download="financas-backup.json"><i class="ph-light ph-download-simple sb-ic" aria-hidden="true"></i>Baixar backup</a>
+      <a class="sb-link" href="#" data-sb-pass><i class="ph-light ph-key sb-ic" aria-hidden="true"></i>Alterar senha</a>
+      <a class="sb-link" href="#" data-sb-logout><i class="ph-light ph-sign-out sb-ic" aria-hidden="true"></i>Sair</a>
     </div>`;
   sidebar.querySelector('[data-sb-pass]').onclick = (e) => { e.preventDefault(); toggleMenu(false); passwordForm(); };
   sidebar.querySelector('[data-sb-logout]').onclick = async (e) => {
@@ -270,7 +271,7 @@ sidebar.addEventListener('click', (e) => { if (e.target.closest('a[href^="#/"]')
 
 // ───────────── Início ─────────────
 async function homeView(id) {
-  setHeader('Início');
+  setHeader('Início', { icon: 'house' });
   if (!view.innerHTML) view.innerHTML = '<div class="loading">Carregando…</div>';
   const s = await api('/api/summary');
   if (stale(id)) return;
@@ -352,7 +353,7 @@ async function bankView(id, accId, q) {
   if (stale(id)) return;
   const acc = st.account;
   if (acc.kind === 'card') return go(`#/cartao/${accId}`);
-  setHeader(acc.name, { back: true, actions: [['Editar', () => accountForm(acc)]] });
+  setHeader(acc.name, { icon: 'bank', actions: [['Editar', () => accountForm(acc)]] });
 
   view.innerHTML = `
     <div class="monthnav">
@@ -387,7 +388,7 @@ async function cardView(id, accId, q) {
   const acc = inv.account;
   if (acc.kind !== 'card') return go(`#/conta/${accId}`);
   state.ctx = { account_id: accId, invoice: inv.invoice };
-  setHeader(acc.name, { back: true, actions: [['Editar', () => accountForm(acc)]] });
+  setHeader(acc.name, { icon: 'credit-card', actions: [['Editar', () => accountForm(acc)]] });
 
   const t = today();
   let badge;
@@ -428,7 +429,7 @@ function defaultFilters() {
 }
 
 async function searchView(id) {
-  setHeader('Lançamentos');
+  setHeader('Lançamentos', { icon: 'list-bullets' });
   const [accounts, cats] = await Promise.all([ensureAccounts(), ensureCategories()]);
   if (stale(id)) return;
   const f = state.filters || (state.filters = defaultFilters());
@@ -798,13 +799,12 @@ view.addEventListener('click', (e) => {
   const row = e.target.closest('[data-tx]');
   if (row) openTx(row.dataset.tx);
 });
-$('#back').onclick = () => (history.length > 1 ? history.back() : go('#/'));
 $('#fab').onclick = () => txForm(null, { ...state.ctx });
 window.addEventListener('hashchange', () => { if (document.body.classList.contains('locked')) return; modal.open && modal.close(); toggleMenu(false); render(); });
 
 // ───────────── tema claro/escuro ─────────────
-const ICON_MOON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>';
-const ICON_SUN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>';
+const ICON_MOON = '<i class="ph-light ph-moon" aria-hidden="true"></i>';
+const ICON_SUN = '<i class="ph-light ph-sun" aria-hidden="true"></i>';
 const systemDark = matchMedia('(prefers-color-scheme: dark)');
 const isDark = () => (document.documentElement.dataset.theme || (systemDark.matches ? 'dark' : 'light')) === 'dark';
 function paintThemeButton() {

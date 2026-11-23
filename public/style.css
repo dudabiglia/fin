@@ -55,7 +55,9 @@ button { font: inherit; color: inherit; cursor: pointer; }
 
 /* cabeçalho da página, dentro do conteúdo */
 .page-head { display: flex; align-items: center; gap: 6px; margin: 2px 2px 14px; min-height: 36px; }
-.page-head h1 { flex: 1; min-width: 0; margin: 0; font-size: 26px; font-weight: 800; letter-spacing: -.4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.page-head h1 { flex: 1; min-width: 0; margin: 0; font-size: 28px; font-weight: 300; letter-spacing: -.3px; display: flex; align-items: center; gap: 10px; }
+.page-head .title-ic { color: var(--brand); font-size: 30px; flex: none; }
+.page-head .title-tx { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 #top-actions { display: flex; gap: 8px; }
 
 main { max-width: 760px; margin: 0 auto; padding: 14px 14px 84px; }
@@ -191,9 +193,9 @@ footer.foot a { color: var(--brand); }
 .sb-link .nm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .sb-link .amt { margin-left: auto; font-size: 13px; color: var(--muted); white-space: nowrap; font-weight: 500; }
 .sb-link .amt.out { color: var(--out); }
-.sb-ic { width: 20px; text-align: center; flex: none; }
+.sb-ic { width: 20px; text-align: center; flex: none; font-size: 20px; }
 .sb-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; margin: 0 5px; }
-.sb-sec { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); padding: 18px 12px 6px; font-weight: 600; }
+.sb-sec { display: flex; align-items: center; gap: 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); padding: 18px 12px 6px; font-weight: 600; }
 .sb-add { color: var(--brand); font-size: 14px; }
 .sb-foot { border-top: 1px solid var(--line); margin-top: 16px; padding-top: 10px; }
 
@@ -230,4 +232,5 @@ dialog.confirm form { padding: 18px; }
 .theme-btn { background: none; border: 0; color: inherit; padding: 6px; margin-left: 2px; border-radius: 999px; line-height: 0; flex: none; }
 .theme-btn { color: var(--muted); }
 .theme-btn:hover { background: var(--line); color: var(--text); }
-.theme-btn svg { width: 22px; height: 22px; }
+.theme-btn i { font-size: 24px; }
+.sb-sec i { font-size: 16px; }
