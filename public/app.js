@@ -99,8 +99,8 @@ function toast(msg, err = false) {
 }
 
 function setHeader(title, { back = false, actions = [] } = {}) {
-  $('#title').textContent = title === 'fin' ? '' : title;
-  document.title = title === 'fin' ? 'fin' : `${title} · fin`;
+  $('#title').textContent = title;
+  document.title = title === 'Início' ? 'fin' : `${title} · fin`;
   $('#back').hidden = !back;
   const box = $('#top-actions');
   box.innerHTML = '';
@@ -270,7 +270,7 @@ sidebar.addEventListener('click', (e) => { if (e.target.closest('a[href^="#/"]')
 
 // ───────────── Início ─────────────
 async function homeView(id) {
-  setHeader('fin');
+  setHeader('Início');
   if (!view.innerHTML) view.innerHTML = '<div class="loading">Carregando…</div>';
   const s = await api('/api/summary');
   if (stale(id)) return;
@@ -813,7 +813,7 @@ function paintThemeButton() {
   btn.innerHTML = dark ? ICON_SUN : ICON_MOON;
   btn.setAttribute('aria-label', dark ? 'Mudar para modo claro' : 'Mudar para modo escuro');
   btn.title = btn.getAttribute('aria-label');
-  document.querySelector('meta[name="theme-color"]').content = dark ? '#0b6b3d' : '#0f9d58';
+  document.querySelector('meta[name="theme-color"]').content = dark ? '#0f1115' : '#f4f5f7';
 }
 $('#theme').onclick = () => {
   const next = isDark() ? 'light' : 'dark';
