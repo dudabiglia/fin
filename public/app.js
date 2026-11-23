@@ -4,7 +4,7 @@ const $ = (s, el = document) => el.querySelector(s);
 const view = $('#view');
 const modal = $('#modal');
 
-const state = { accounts: null, categories: null, ctx: {}, filters: null, renderId: 0 };
+const state = { accounts: null, categories: null, ctx: {}, filters: null, renderId: 0, sel: new Map(), selMode: false };
 
 const DEFAULT_CATEGORIES = [
   'Alimentação', 'Mercado', 'Transporte', 'Moradia', 'Contas', 'Saúde', 'Educação', 'Lazer',
@@ -100,7 +100,7 @@ function toast(msg, err = false) {
 
 const icon = (name, cls = '') => `<i class="ph-light ph-${name}${cls ? ` ${cls}` : ''}" aria-hidden="true"></i>`;
 
-function setHeader(title, { icon: ic = null, actions = [] } = {}) {
+function setHeader(title, { icon: ic = null, actions = [], selectable = false } = {}) {
   $('#title').innerHTML = `${ic ? icon(ic, 'title-ic') : ''}<span class="title-tx">${esc(title)}</span>`;
   document.title = title === 'Início' ? 'fin' : `${title} · fin`;
   const box = $('#top-actions');
@@ -110,6 +110,17 @@ function setHeader(title, { icon: ic = null, actions = [] } = {}) {
     b.className = 'top-link';
     b.textContent = label;
     b.onclick = fn;
+    box.append(b);
+  }
+  if (selectable) {
+    const b = document.createElement('button');
+    b.className = 'sel-toggle';
+    b.id = 'sel-toggle';
+    b.innerHTML = icon('check-square-offset');
+    b.setAttribute('aria-label', 'Selecionar lançamentos');
+    b.title = 'Selecionar lançamentos (ou segure um lançamento / Ctrl+clique)';
+    b.classList.toggle('on', state.selMode);
+    b.onclick = () => setSelMode(!state.selMode);
     box.append(b);
   }
 }
@@ -135,7 +146,7 @@ function txRow(t, { showAccount = false, showBalance = false, showInvoice = fals
   if (t.note) sub.push(esc(t.note));
   const parc = t.installments ? ` <span class="muted">(${t.installment}/${t.installments})</span>` : '';
   const sign = t.type === 'in' ? '+' : '−';
-  return `<div class="row click" data-tx="${t.id}">
+  return `<div class="row click tx${state.sel.has(String(t.id)) ? ' selected' : ''}" data-tx="${t.id}" data-type="${t.type}" data-amount="${t.amount}">
     <div class="main"><div class="t">${esc(t.description)}${parc}</div><div class="s">${sub.join(' · ')}</div></div>
     <div class="v ${t.type}">${sign} ${money(t.amount)}${showBalance ? `<small>saldo ${money(t.running_balance)}</small>` : ''}</div>
   </div>`;
@@ -191,10 +202,53 @@ function ask(message, okLabel = 'Excluir') {
 
 async function afterChange(msg) {
   modal.close();
+  setSelMode(false);
   toast(msg);
   state.accounts = null;
   state.categories = null;
   await render();
+}
+
+// ───────────── seleção múltipla ─────────────
+const selbar = document.createElement('div');
+selbar.id = 'selbar';
+selbar.setAttribute('role', 'status');
+document.body.append(selbar);
+
+function setSelMode(on) {
+  state.selMode = on;
+  if (!on) state.sel.clear();
+  document.body.classList.toggle('sel-mode', on);
+  $('#sel-toggle')?.classList.toggle('on', on);
+  view.querySelectorAll('.row.tx.selected').forEach((r) => r.classList.toggle('selected', on && state.sel.has(r.dataset.tx)));
+  paintSelbar();
+}
+
+function toggleRow(row) {
+  if (!state.selMode) setSelMode(true);
+  const id = row.dataset.tx;
+  if (state.sel.has(id)) state.sel.delete(id);
+  else state.sel.set(id, { type: row.dataset.type, amount: Number(row.dataset.amount) });
+  row.classList.toggle('selected', state.sel.has(id));
+  paintSelbar();
+}
+
+function paintSelbar() {
+  const items = [...state.sel.values()];
+  if (!state.selMode) { selbar.classList.remove('show'); return; }
+  const inc = items.filter((i) => i.type === 'in').reduce((s, i) => s + i.amount, 0);
+  const out = items.filter((i) => i.type === 'out').reduce((s, i) => s + i.amount, 0);
+  const total = inc - out;
+  const n = items.length;
+  selbar.innerHTML = `
+    <div class="sb-info">
+      <div class="sb-count">${n ? `${n} selecionado${n === 1 ? '' : 's'}` : 'Toque nos lançamentos para selecionar'}</div>
+      ${n ? `<div class="sb-total ${total < 0 ? 'out' : total > 0 ? 'in' : ''}">${total < 0 ? '−' : total > 0 ? '+' : ''} ${money(Math.abs(total))}</div>` : ''}
+      ${inc && out ? `<div class="sb-split"><span class="in">+ ${money(inc)}</span> <span class="out">− ${money(out)}</span></div>` : ''}
+    </div>
+    <button class="sb-close" aria-label="Encerrar seleção">${icon('x')}</button>`;
+  selbar.querySelector('.sb-close').onclick = () => setSelMode(false);
+  selbar.classList.add('show');
 }
 
 // ───────────── rotas ─────────────
@@ -353,7 +407,7 @@ async function bankView(id, accId, q) {
   if (stale(id)) return;
   const acc = st.account;
   if (acc.kind === 'card') return go(`#/cartao/${accId}`);
-  setHeader(acc.name, { icon: 'bank', actions: [['Editar', () => accountForm(acc)]] });
+  setHeader(acc.name, { icon: 'bank', selectable: true, actions: [['Editar', () => accountForm(acc)]] });
 
   view.innerHTML = `
     <div class="monthnav">
@@ -388,7 +442,7 @@ async function cardView(id, accId, q) {
   const acc = inv.account;
   if (acc.kind !== 'card') return go(`#/conta/${accId}`);
   state.ctx = { account_id: accId, invoice: inv.invoice };
-  setHeader(acc.name, { icon: 'credit-card', actions: [['Editar', () => accountForm(acc)]] });
+  setHeader(acc.name, { icon: 'credit-card', selectable: true, actions: [['Editar', () => accountForm(acc)]] });
 
   const t = today();
   let badge;
@@ -429,7 +483,7 @@ function defaultFilters() {
 }
 
 async function searchView(id) {
-  setHeader('Lançamentos', { icon: 'list-bullets' });
+  setHeader('Lançamentos', { icon: 'list-bullets', selectable: true });
   const [accounts, cats] = await Promise.all([ensureAccounts(), ensureCategories()]);
   if (stale(id)) return;
   const f = state.filters || (state.filters = defaultFilters());
@@ -797,10 +851,40 @@ function accountForm(acc = null, kind = acc?.kind || 'bank') {
 // ───────────── eventos globais ─────────────
 view.addEventListener('click', (e) => {
   const row = e.target.closest('[data-tx]');
-  if (row) openTx(row.dataset.tx);
+  if (!row) return;
+  if (suppressClick) { suppressClick = false; return; }
+  if (state.selMode || e.ctrlKey || e.metaKey || e.shiftKey) {
+    e.preventDefault();
+    toggleRow(row);
+  } else {
+    openTx(row.dataset.tx);
+  }
 });
+
+// segurar um lançamento (celular) começa a seleção
+let pressTimer = null, pressStart = null, suppressClick = false;
+view.addEventListener('pointerdown', (e) => {
+  const row = e.target.closest('[data-tx]');
+  suppressClick = false;
+  if (!row || e.button > 0) return;
+  pressStart = { x: e.clientX, y: e.clientY };
+  pressTimer = setTimeout(() => {
+    pressTimer = null;
+    suppressClick = true;
+    if (!state.selMode) setSelMode(true);
+    toggleRow(row);
+    navigator.vibrate?.(15);
+  }, 450);
+});
+const cancelPress = () => { clearTimeout(pressTimer); pressTimer = null; };
+view.addEventListener('pointerup', cancelPress);
+view.addEventListener('pointercancel', cancelPress);
+view.addEventListener('pointermove', (e) => {
+  if (pressTimer && pressStart && Math.hypot(e.clientX - pressStart.x, e.clientY - pressStart.y) > 10) cancelPress();
+});
+view.addEventListener('contextmenu', (e) => { if (e.target.closest('[data-tx]')) e.preventDefault(); });
 $('#fab').onclick = () => txForm(null, { ...state.ctx });
-window.addEventListener('hashchange', () => { if (document.body.classList.contains('locked')) return; modal.open && modal.close(); toggleMenu(false); render(); });
+window.addEventListener('hashchange', () => { if (document.body.classList.contains('locked')) return; modal.open && modal.close(); toggleMenu(false); setSelMode(false); render(); });
 
 // ───────────── tema claro/escuro ─────────────
 const ICON_MOON = '<i class="ph-light ph-moon" aria-hidden="true"></i>';
