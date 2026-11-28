@@ -1,5 +1,7 @@
 // fin — frontend (JavaScript puro, sem build)
 
+import { initNotes, loadNotes, clearNotes, newNote } from './notes.js';
+
 const $ = (s, el = document) => el.querySelector(s);
 const view = $('#view');
 const modal = $('#modal');
@@ -302,6 +304,7 @@ async function renderSidebar(path = parseHash().path) {
     ${cards.map((a) => link(`#/cartao/${a.id}`, `<span class="sb-dot" style="background:${esc(accColor(a))}"></span><span class="nm">${esc(a.name)}</span><span class="amt${a.current_invoice_total > 0 ? ' out' : ''}">${money(a.current_invoice_total)}</span>`)).join('')}
     <a class="sb-link sb-add" href="javascript:void 0" data-sb-new="card"><i class="ph-light ph-plus sb-ic" aria-hidden="true"></i>Novo cartão</a>
     <div class="sb-foot">
+      <a class="sb-link" href="#" data-sb-note><i class="ph-light ph-note-pencil sb-ic" aria-hidden="true"></i>Novo post-it</a>
       <a class="sb-link" href="#" data-sb-transfer><i class="ph-light ph-arrows-left-right sb-ic" aria-hidden="true"></i>Transferência</a>
       <a class="sb-link" href="/api/export" download="financas-backup.json"><i class="ph-light ph-download-simple sb-ic" aria-hidden="true"></i>Baixar backup</a>
       <a class="sb-link" href="#" data-sb-pass><i class="ph-light ph-key sb-ic" aria-hidden="true"></i>Alterar senha</a>
@@ -317,6 +320,7 @@ async function renderSidebar(path = parseHash().path) {
   sidebar.querySelectorAll('[data-sb-new]').forEach((b) => {
     b.onclick = (e) => { e.preventDefault(); toggleMenu(false); accountForm(null, b.dataset.sbNew); };
   });
+  sidebar.querySelector('[data-sb-note]').onclick = (e) => { e.preventDefault(); toggleMenu(false); newNote(); };
   sidebar.querySelector('[data-sb-transfer]').onclick = (e) => { e.preventDefault(); toggleMenu(false); transferForm(); };
 }
 $('#menu').onclick = () => toggleMenu(!sidebar.classList.contains('open'));
@@ -908,6 +912,8 @@ $('#theme').onclick = () => {
 systemDark.addEventListener('change', paintThemeButton);
 paintThemeButton();
 
+initNotes({ api, ask, icon, toast });
+
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js').catch(() => {});
 }
@@ -920,6 +926,7 @@ function showAuth(configured) {
   state.accounts = null;
   state.categories = null;
   state.filters = null;
+  clearNotes();
   document.body.classList.add('locked');
   document.title = 'Entrar · fin';
   view.innerHTML = `
@@ -949,6 +956,7 @@ function showAuth(configured) {
       document.body.classList.remove('locked');
       view.innerHTML = '';
       render();
+      loadNotes();
     } catch (ex) {
       err.textContent = ex.message;
       $('#au-pass').select();
@@ -998,4 +1006,5 @@ function passwordForm() {
     return;
   }
   render();
+  loadNotes();
 })();

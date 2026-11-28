@@ -150,6 +150,12 @@ async function route(request, env, url) {
   if (p === '/api/transfers' && m === 'POST') return json(await createTransfer(env, await readBody(request)), 201);
   if (p === '/api/categories' && m === 'GET') return json(await categories(env));
   if (p === '/api/export' && m === 'GET') return json(await exportAll(env));
+  if (p === '/api/notes' && m === 'GET') return json(await listNotes(env));
+  if (p === '/api/notes' && m === 'POST') return json(await saveNote(env, null, await readBody(request)), 201);
+  if ((r = p.match(/^\/api\/notes\/(\d+)$/))) {
+    if (m === 'PUT') return json(await saveNote(env, r[1], await readBody(request)));
+    if (m === 'DELETE') return json(await deleteNote(env, r[1]));
+  }
 
   throw new HttpError(404, 'Rota não encontrada');
 }
@@ -489,11 +495,43 @@ async function summary(env, url) {
 }
 
 async function exportAll(env) {
-  const [a, t] = await env.DB.batch([
+  const [a, t, n] = await env.DB.batch([
     env.DB.prepare('SELECT * FROM accounts ORDER BY id'),
     env.DB.prepare('SELECT * FROM transactions ORDER BY id'),
+    env.DB.prepare('SELECT * FROM notes ORDER BY id'),
   ]);
-  return { exported_at: new Date().toISOString(), accounts: a.results, transactions: t.results };
+  return { exported_at: new Date().toISOString(), accounts: a.results, transactions: t.results, notes: n.results };
+}
+
+// ───────────────────────── post-its ─────────────────────────
+
+const NOTE_COLORS = ['yellow', 'pink', 'green', 'blue'];
+
+async function listNotes(env) {
+  const { results } = await env.DB.prepare('SELECT * FROM notes ORDER BY id').all();
+  return results;
+}
+
+async function saveNote(env, id, b) {
+  const cur = id ? await env.DB.prepare('SELECT * FROM notes WHERE id = ?').bind(Number(id)).first() : null;
+  if (id && !cur) throw new HttpError(404, 'Post-it não encontrado');
+  const content = b.content === undefined ? (cur?.content ?? '') : String(b.content ?? '');
+  req(content.length <= 20000, 'Texto muito longo (máx. 20.000 caracteres)');
+  const color = b.color === undefined ? (cur?.color ?? 'yellow') : b.color;
+  req(NOTE_COLORS.includes(color), 'Cor inválida');
+  if (cur) {
+    await env.DB.prepare("UPDATE notes SET content = ?, color = ?, updated_at = datetime('now') WHERE id = ?")
+      .bind(content, color, cur.id).run();
+    return env.DB.prepare('SELECT * FROM notes WHERE id = ?').bind(cur.id).first();
+  }
+  const res = await env.DB.prepare('INSERT INTO notes (content, color) VALUES (?, ?)').bind(content, color).run();
+  return env.DB.prepare('SELECT * FROM notes WHERE id = ?').bind(res.meta.last_row_id).first();
+}
+
+async function deleteNote(env, id) {
+  const r = await env.DB.prepare('DELETE FROM notes WHERE id = ?').bind(Number(id)).run();
+  if (!r.meta.changes) throw new HttpError(404, 'Post-it não encontrado');
+  return { ok: true };
 }
 
 // ───────────────────────── Login (senha única, guardada no D1) ─────────────────────────

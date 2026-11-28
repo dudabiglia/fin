@@ -206,3 +206,25 @@ test('login com senha', async () => {
   await assert.rejects(bad('POST', '/api/auth/login', { password: 'x' }), (e) => e.status === 429);
   await assert.rejects(bad('POST', '/api/auth/login', { password: 'nova-senha-1' }), (e) => e.status === 429);
 });
+
+test('post-its', async () => {
+  const env = { DB: createD1(MIG) };
+  const api = client(env);
+  await assert.rejects(api('GET', '/api/notes'), (e) => e.status === 401);
+  await api('POST', '/api/auth/setup', { password: 'minha-senha-123' });
+  assert.deepEqual(await api('GET', '/api/notes'), []);
+  const n = await api('POST', '/api/notes', {});
+  assert.equal(n.content, '');
+  assert.equal(n.color, 'yellow');
+  const u = await api('PUT', `/api/notes/${n.id}`, { content: 'Pagar IPTU\nLigar banco' });
+  assert.equal(u.content, 'Pagar IPTU\nLigar banco');
+  assert.equal(u.color, 'yellow');
+  assert.equal((await api('PUT', `/api/notes/${n.id}`, { color: 'pink' })).content, 'Pagar IPTU\nLigar banco');
+  await assert.rejects(api('PUT', `/api/notes/${n.id}`, { color: 'roxo' }), /Cor/);
+  await api('POST', '/api/notes', { content: 'segundo', color: 'blue' });
+  assert.equal((await api('GET', '/api/notes')).length, 2);
+  assert.equal((await api('GET', '/api/export')).notes.length, 2);
+  await api('DELETE', `/api/notes/${n.id}`);
+  await assert.rejects(api('DELETE', `/api/notes/${n.id}`), (e) => e.status === 404);
+  assert.equal((await api('GET', '/api/notes')).length, 1);
+});

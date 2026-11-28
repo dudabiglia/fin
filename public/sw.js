@@ -1,7 +1,7 @@
 // Service worker: permite instalar o app e abre a "casca" offline.
 // A API (/api) nunca é cacheada — os dados vêm sempre do servidor.
-const CACHE = 'fin-v14';
-const SHELL = ['/', '/index.html', '/style.css', '/app.js', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/logo-64.png'];
+const CACHE = 'fin-v15';
+const SHELL = ['/', '/index.html', '/style.css', '/app.js', '/notes.js', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/logo-64.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).catch(() => {}));
